@@ -20,7 +20,7 @@ For each image it will:
 ◦	Channel 1 area above Threshold - is the number of pixels above threshold
 ◦	Channel 2 overlap sum - is the sum of the channel 2 pixel intensity values that overlap with channel 1 (these are the above threshold pixels)
 ◦	Channel 2 overlap mean - is the mean channel 2 pixel intensity values that overlap with channel 1 (these are the above threshold pixels)
-◦	Channel 2 M - is the Manders M2 wich is calculate by the sum of the channel 2 pixel intensity values that  overlap with channel 1 (these are the above threshold pixels) divided by the sum of all channel 2 pixel intensities
+◦	Channel 2 M - is the  Manders' Coefficients M wich is calculate by the sum of the channel 2 pixel intensity values that  overlap with channel 1 (these are the above threshold pixels) divided by the sum of all channel 2 pixel intensities above threshold
 ◦	Overlap area - is the number of pixels that result from an and operation between the channel 1 mask and channel 2 mask
 ◦	Pearsons- pearsons coefficient for channel 1 and channel 2 intensities
 ◦     R-squared - R2 for channel 1 and channel 2 intensities
@@ -31,12 +31,12 @@ All the channel 1 masks are saved in path_results
 """
 from skimage.filters import threshold_otsu
 import skimage.external.tifffile as tf
-from skimage.measure import regionprops
 import numpy as np
 import os
 from pandas import DataFrame as df
 from scipy import stats
 import sys
+from scipy import ndimage
 
 def get_lsm_ch(image_dir,color):
 
@@ -134,18 +134,22 @@ class confocal_coloc:
       self.ch1_sum = ch1.sum() #Sum of all the ch1 pixels intensities  in the image
       self.ch1_mask = ch1 > self.ch1_th #Generate a ch1 mask based on a threshold using the Otsu algorithm.       
       self.ch2_mask = ch2 > self.ch2_th #Generate a ch2 mask based on a threshold using the Otsu algorithm.       
+      self.test_mask  = ndimage.morphology.binary_fill_holes(self.ch1_mask)      
       self.overlap_mask = np.logical_and(self.ch1_mask,self.ch2_mask)
       self.overlap_area = self.overlap_mask.sum()
       self.ch1_above_th = ch1[self.ch1_mask].sum() #Sum of all the ch1 pixel intensities above threshold
       self.ch1_above_th_count = len(ch1[self.ch1_mask]) #Number of pixels above threshold
       self.ch2_sum = ch2.sum() #Sum of all the ch2 pixel intensities
+      self.ch2_above_th = ch2[self.ch2_mask].sum() #Sum of all the ch2 pixel intensities above threshold
       self.ch2_overlap_sum =  ch2[self.ch1_mask].sum() #Sum of the ch2 pixel intensity values that overlap with the ch1 (these are the above threshold pixels)
       self.ch2_overlap_mean =  ch2[self.ch1_mask].sum()/self.ch1_above_th_count #Mean of the ch2 pixel intensity values that overlap with the ch1 (these are the above threshold pixels)
       self.ch2_n_overlap_sum =  ch2[~self.ch1_mask].sum() #Sum of the ch2 pixel intensity values that don’t overlap with the ch1  
       self.ch2_n_overlap_count = len(ch2[~self.ch1_mask]) #Number of ch2  pixels that  don’t overlap with the ch1
       self.ch1_flat = ch1.flatten()
       self.ch2_flat = ch2.flatten()
-    
+      self.ch2_overlap_mask_sum = ch2[self.overlap_mask].sum()
+      self.M2 = self.ch2_overlap_mask_sum/float(self.ch2_above_th)
+
     def pearsons(self):
       pearsons = stats.pearsonr(self.ch1_flat,self.ch2_flat)
       return pearsons[0]
@@ -160,7 +164,7 @@ local = True
 
 if local: 
     # Path where you have the 2D or zstacks 
-    path = '/Users/keriabermudez/Dropbox/Projects/Julia/Julia_Keria_Examples_82616/'
+    path = '/Users/keriabermudez/Dropbox/Projects/Julia/Files_sent_Sept28/Examples for Keria/'
     # Path where you want the results to be saved
     path_results = path+'Results/'
     channel_1 = 'red'
@@ -168,7 +172,7 @@ if local:
     name = 'Results_5416'
     format_image = 'lsm'
     channel_1_th = None
-    channel_2_th = 300
+    channel_2_th = 450
 
 else:
     path = str(sys.argv[2])
@@ -199,7 +203,7 @@ for img in os.listdir(path):
         img_vals[channel_2+'_Threshold'] = image.ch2_th
         img_vals[channel_2+'_Overlap_Sum'] = image.ch2_overlap_sum
         img_vals[channel_2+'_Overlap_Mean'] = image.ch2_overlap_mean 
-        img_vals[channel_2+'_M'] = image.ch2_overlap_sum/image.ch2_sum
+        img_vals[channel_2+'_M2'] = image.M2
         img_vals['Overlap_Area'] = image.overlap_area
         img_vals['Pearsons'] = image.pearsons()
         img_vals['R-squared'] = image.lineareg()
