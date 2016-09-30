@@ -134,7 +134,6 @@ class confocal_coloc:
       self.ch1_sum = ch1.sum() #Sum of all the ch1 pixels intensities  in the image
       self.ch1_mask = ch1 > self.ch1_th #Generate a ch1 mask based on a threshold using the Otsu algorithm.       
       self.ch2_mask = ch2 > self.ch2_th #Generate a ch2 mask based on a threshold using the Otsu algorithm.       
-      self.test_mask  = ndimage.morphology.binary_fill_holes(self.ch1_mask)      
       self.overlap_mask = np.logical_and(self.ch1_mask,self.ch2_mask)
       self.overlap_area = self.overlap_mask.sum()
       self.ch1_above_th = ch1[self.ch1_mask].sum() #Sum of all the ch1 pixel intensities above threshold
@@ -148,6 +147,8 @@ class confocal_coloc:
       self.ch1_flat = ch1.flatten()
       self.ch2_flat = ch2.flatten()
       self.ch2_overlap_mask_sum = ch2[self.overlap_mask].sum()
+      self.ch1_overlap_mask_sum = ch1[self.overlap_mask].sum()
+      self.M1 = self.ch1_overlap_mask_sum/float(self.ch1_above_th)
       self.M2 = self.ch2_overlap_mask_sum/float(self.ch2_above_th)
 
     def pearsons(self):
@@ -203,6 +204,7 @@ for img in os.listdir(path):
         img_vals[channel_2+'_Threshold'] = image.ch2_th
         img_vals[channel_2+'_Overlap_Sum'] = image.ch2_overlap_sum
         img_vals[channel_2+'_Overlap_Mean'] = image.ch2_overlap_mean 
+        img_vals[channel_1+'_M1'] = image.M1
         img_vals[channel_2+'_M2'] = image.M2
         img_vals['Overlap_Area'] = image.overlap_area
         img_vals['Pearsons'] = image.pearsons()
