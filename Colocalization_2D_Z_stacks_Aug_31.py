@@ -5,6 +5,8 @@ Created on Wed Mar  2 10:26:58 2016
 @author: keriabermudez
 """
 """
+Version December 2016
+
 The script will read images or zstacks and will calculated several things.
 
 For each image it will:
