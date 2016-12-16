@@ -29,7 +29,7 @@ For each image it will:
 All the channel 1 masks are saved in path_results
 
 """
-from skimage.filters import threshold_otsu
+from skimage.filters import threshold_otsu, threshold_yen
 import skimage.external.tifffile as tf
 import numpy as np
 import os
@@ -37,6 +37,10 @@ from pandas import DataFrame as df
 from scipy import stats
 import sys
 from scipy import ndimage
+from skimage import io, exposure, img_as_ubyte
+from skimage import segmentation
+import  matplotlib.pyplot as plt
+import mahotas as mh
 
 def get_lsm_ch(image_dir,color):
 
@@ -72,9 +76,22 @@ def get_lsm_ch(image_dir,color):
     else:
         return channel.index[0]
 
+def cmd_th(image,perc): ## check this
+    img_cdf, bins = exposure.cumulative_distribution(image, 65536)
+    mask = img_cdf > perc
+    return bins[mask].min()
+
+def get_cmd(image,th):
+    img_cdf, bins = exposure.cumulative_distribution(image, 65536)
+    mask = bins == th
+    return img_cdf[mask][0]
+    
+    
 class confocal_coloc:
     
-    def __init__(self, image_dir, color_1, color_2,ch1_th = None, ch2_th = None):
+    def __init__(self, image_dir, color_1, color_2,cmd_limit = 0.15,cmd_th_val = 0.005,ch1_th = None, ch2_th = None):
+      cmd_limit = 1 - cmd_limit
+      cmd_th_val = 1 - cmd_th_val
       
       self.image_dir = image_dir
       self.color_1 = color_1
@@ -117,20 +134,44 @@ class confocal_coloc:
           elif len_shape == 5:
               ch1 = image[0,:,color_1_channel,:,:]
               ch2 = image[0,:,color_2_channel,:,:]
-           
+      self.len_shape = len_shape
       self.ch2 = ch2
       self.ch1 = ch1
+      self.ch1_mth =  ch1_th
+      self.ch2_mth =  ch2_th
       
-      if ch1_th == None:
+      #channel 1
+      if ch1_th == None or ch1_th == 'otsu':
+          self.ch1_mth =  'otsu'
           self.ch1_th = threshold_otsu(ch1)
+      elif ch1_th == 'cmd':
+          self.ch1_th = cmd_th(ch1,cmd_th_val)
+      elif ch1_th == 'yen':
+          self.ch1_th = threshold_yen(ch1)
       else:
           self.ch1_th = ch1_th
-      if ch2_th == None:
+      ch1_cmd = get_cmd(self.ch1, self.ch1_th)
+      if ch1_cmd < cmd_limit:
+          self.ch1_mth =  'cmd'
+          self.ch1_th = cmd_th(ch1,cmd_th_val)
+      
+      #channel 2
+      if ch2_th == None or ch2_th == 'otsu':
           self.ch2_th = threshold_otsu(ch2)
+          self.ch2_mth =  'otsu'
+      elif ch2_th == 'cmd':
+          self.ch2_th = cmd_th(ch2,cmd_th_val)
+      elif ch2_th == 'yen':
+          self.ch2_th = threshold_yen(ch2)
       else:
           self.ch2_th = ch2_th
-          
-
+      ch2_cmd = get_cmd(self.ch2, self.ch2_th)
+      if ch2_cmd < cmd_limit:
+          self.ch2_mth =  'cmd'
+          self.ch2_th = cmd_th(ch2,cmd_th_val)
+      
+      self.ch1_cmd = get_cmd(self.ch1, self.ch1_th)
+      self.ch2_cmd = get_cmd(self.ch2, self.ch2_th)
       self.ch1_sum = ch1.sum() #Sum of all the ch1 pixels intensities  in the image
       self.ch1_mask = ch1 > self.ch1_th #Generate a ch1 mask based on a threshold using the Otsu algorithm.       
       self.ch2_mask = ch2 > self.ch2_th #Generate a ch2 mask based on a threshold using the Otsu algorithm.       
@@ -150,6 +191,7 @@ class confocal_coloc:
       self.ch1_overlap_mask_sum = ch1[self.overlap_mask].sum()
       self.M1 = self.ch1_overlap_mask_sum/float(self.ch1_above_th)
       self.M2 = self.ch2_overlap_mask_sum/float(self.ch2_above_th)
+      
 
     def pearsons(self):
       pearsons = stats.pearsonr(self.ch1_flat,self.ch2_flat)
@@ -165,16 +207,17 @@ local = True
 
 if local: 
     # Path where you have the 2D or zstacks 
-    path = '/Users/keriabermudez/Dropbox/Projects/Julia/Files_sent_Sept28/Examples for Keria/'
+    path = '/Users/keriabermudez/Dropbox/Projects/Julia/Nov_test/'
     # Path where you want the results to be saved
     path_results = path+'Results/'
     channel_1 = 'red'
     channel_2 = 'green'
     name = 'Results_5416'
     format_image = 'lsm'
-    channel_1_th = None
-    channel_2_th = 450
-
+    channel_1_th = 'yen'
+    channel_2_th = 'yen'
+    cmd_limit = 0.15 #  if the threshld method results in a forground that covers more than 15% of the image, then use threshold values cmd_th_val as limit
+    cmd_th_val = 0.005
 else:
     path = str(sys.argv[2])
     channel_1 = str(sys.argv[3])
@@ -183,29 +226,33 @@ else:
     format_image = str(sys.argv[6])
     channel_1_th = int(sys.argv[7])
     channel_2_th = int(sys.argv[8])
-
+    cmd_limit = int(sys.argv[8])
 if not os.path.exists(path_results):
         os.makedirs(path_results)    
 
-
+colors =  {'red':0,'green':1,'blue':2}
 all_values = {}
 
 for img in os.listdir(path):
     if img.endswith(format_image):
         image_file = path + img        
-        image = confocal_coloc(image_file,channel_1,channel_2, channel_1_th, channel_2_th)
+        image = confocal_coloc(image_file,channel_1,channel_2, ch1_th=channel_1_th, ch2_th=channel_2_th)
         #Saving values
         img_vals = {}
         img_vals[channel_1+'_Sum'] = image.ch1_sum # eliminate
+        img_vals[channel_1+'_Th_Mth'] = image.ch1_mth
         img_vals[channel_1+'_Threshold'] = image.ch1_th
         img_vals[channel_1+'_Sum_above_th']= image.ch1_above_th
         img_vals[channel_1+'_Area_above_th']= image.ch1_above_th_count
         img_vals[channel_1+'_Mean_above_Th']= image.ch1_above_th/image.ch1_above_th_count
+        img_vals[channel_2+'_Th_Mth'] = image.ch2_mth
         img_vals[channel_2+'_Threshold'] = image.ch2_th
         img_vals[channel_2+'_Overlap_Sum'] = image.ch2_overlap_sum
         img_vals[channel_2+'_Overlap_Mean'] = image.ch2_overlap_mean 
         img_vals[channel_1+'_M1'] = image.M1
         img_vals[channel_2+'_M2'] = image.M2
+        img_vals[channel_1+'_cmd'] = image.ch1_cmd
+        img_vals[channel_2+'_cmd'] = image.ch2_cmd
         img_vals['Overlap_Area'] = image.overlap_area
         img_vals['Pearsons'] = image.pearsons()
         img_vals['R-squared'] = image.lineareg()
@@ -221,9 +268,35 @@ for img in os.listdir(path):
         tf.imsave(path_results+img[:-4]+'_'+channel_1+'_mask.tif', ch1_mask_img)
         tf.imsave(path_results+img[:-4]+'_'+channel_2+'_mask.tif', ch2_mask_img)
         tf.imsave(path_results+img[:-4]+'_'+'overlap'+'_mask.tif', overlap_mask_img)
+        
+        if image.len_shape == 3:
+            color_1 = colors[channel_1]
+            color_2 = colors[channel_2]
+            
+            color_image_ch1 = np.zeros((image.ch1_mask.shape[0],image.ch1_mask.shape[1],3), dtype= np.uint16)
+            color_image_ch1[:,:,color_1]= image.ch1
+            labeled, num_clusters= mh.label(ch1_mask_img, np.ones((3,3), bool))
+            contours = np.zeros((image.ch1_mask.shape[0],image.ch1_mask.shape[1]), 'uint16')
+            marked = segmentation.mark_boundaries(contours, labeled, color=[1,1,1], mode='outside')
+            contours[marked[:,:,0] == 1] = image.ch1.max()
+            color_image_ch1[:,:,2] = contours
+            io.imsave(path_results+img[:-4]+'_'+channel_1+'.tif', color_image_ch1)
+
+            color_image_ch2 = np.zeros((image.ch2_mask.shape[0],image.ch2_mask.shape[1],3), dtype= np.uint16)
+            color_image_ch2[:,:,color_2]= image.ch2
+            labeled, num_clusters= mh.label(ch2_mask_img, np.ones((3,3), bool))
+            contours = np.zeros((image.ch2_mask.shape[0],image.ch2_mask.shape[1]), 'uint16')
+            marked = segmentation.mark_boundaries(contours, labeled, color=[1,1,1], mode='outside')
+            contours[marked[:,:,0] == 1] = image.ch2.max()
+            color_image_ch2[:,:,2] = contours
+            io.imsave(path_results+img[:-4]+'_'+channel_2+'.tif', color_image_ch2)
 
 # Summary Table        
 table = df(all_values)
 table = table.T
 table.to_csv(path_results+name+'.csv')
+
+
+
+     
 
