@@ -209,7 +209,7 @@ local = True
 
 if local: 
     # Path where you have the 2D or zstacks 
-    path = '/Users/keriabermudez/Dropbox/Projects/Julia/Nov_test/'
+    path = '/Users/keriabermudez/Dropbox/Projects/Julia/Julia_Keria_Examples_82616/'
     # Path where you want the results to be saved
     path_results = path+'Results/'
     channel_1 = 'red'
@@ -218,7 +218,7 @@ if local:
     format_image = 'lsm'
     channel_1_th = 'yen'
     channel_2_th = 'yen'
-    cmd_limit = 0.15 #  if the threshld method results in a forground that covers more than 15% of the image, then use threshold values cmd_th_val as limit
+    cmd_limit = 0.5 #  if the threshld method results in a forground that covers more than 50% of the image, then use threshold values cmd_th_val as limit
     cmd_th_val = 0.005
 else:
     path = str(sys.argv[2])
