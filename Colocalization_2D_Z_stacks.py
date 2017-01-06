@@ -5,7 +5,7 @@ Created on Wed Mar  2 10:26:58 2016
 @author: keriabermudez
 """
 """
-Version December 2016
+Version January 6 2017
 
 The script will read images or zstacks and will calculated several things.
 
