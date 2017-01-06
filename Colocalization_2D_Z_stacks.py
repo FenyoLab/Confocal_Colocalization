@@ -91,9 +91,8 @@ def get_cmd(image,th):
     
 class confocal_coloc:
     
-    def __init__(self, image_dir, color_1, color_2,cmd_limit = 0.15,cmd_th_val = 0.005,ch1_th = None, ch2_th = None):
-      cmd_limit = 1 - cmd_limit
-      cmd_th_val = 1 - cmd_th_val
+    def __init__(self, image_dir, color_1, color_2,ch1_th = None, ch2_th = None, cmd_th_val = None,cmd_limit =None):
+      
       
       self.image_dir = image_dir
       self.color_1 = color_1
@@ -153,9 +152,7 @@ class confocal_coloc:
       else:
           self.ch1_th = ch1_th
       ch1_cmd = get_cmd(self.ch1, self.ch1_th)
-      if ch1_cmd < cmd_limit:
-          self.ch1_mth =  'cmd'
-          self.ch1_th = cmd_th(ch1,cmd_th_val)
+      
       
       #channel 2
       if ch2_th == None or ch2_th == 'otsu':
@@ -167,10 +164,18 @@ class confocal_coloc:
           self.ch2_th = threshold_yen(ch2)
       else:
           self.ch2_th = ch2_th
+      
       ch2_cmd = get_cmd(self.ch2, self.ch2_th)
-      if ch2_cmd < cmd_limit:
-          self.ch2_mth =  'cmd'
-          self.ch2_th = cmd_th(ch2,cmd_th_val)
+      
+      if cmd_limit != None:
+          cmd_limit = 1 - cmd_limit
+          cmd_th_val = 1 - cmd_th_val
+          if ch1_cmd < cmd_limit:
+              self.ch1_mth =  'cmd'
+              self.ch1_th = cmd_th(ch1,cmd_th_val)
+          if ch2_cmd < cmd_limit:
+              self.ch2_mth =  'cmd'
+              self.ch2_th = cmd_th(ch2,cmd_th_val)
       
       self.ch1_cmd = get_cmd(self.ch1, self.ch1_th)
       self.ch2_cmd = get_cmd(self.ch2, self.ch2_th)
@@ -181,8 +186,13 @@ class confocal_coloc:
       self.overlap_area = self.overlap_mask.sum()
       self.ch1_above_th = ch1[self.ch1_mask].sum() #Sum of all the ch1 pixel intensities above threshold
       self.ch1_above_th_count = len(ch1[self.ch1_mask]) #Number of pixels above threshold
+      
+      
       self.ch2_sum = ch2.sum() #Sum of all the ch2 pixel intensities
       self.ch2_above_th = ch2[self.ch2_mask].sum() #Sum of all the ch2 pixel intensities above threshold
+      self.ch2_above_th_count = len(ch2[self.ch2_mask]) #Number of pixels above threshold
+
+      
       self.ch2_overlap_sum =  ch2[self.ch1_mask].sum() #Sum of the ch2 pixel intensity values that overlap with the ch1 (these are the above threshold pixels)
       self.ch2_overlap_mean =  ch2[self.ch1_mask].sum()/self.ch1_above_th_count #Mean of the ch2 pixel intensity values that overlap with the ch1 (these are the above threshold pixels)
       self.ch2_n_overlap_sum =  ch2[~self.ch1_mask].sum() #Sum of the ch2 pixel intensity values that don’t overlap with the ch1  
@@ -218,8 +228,8 @@ if local:
     format_image = 'lsm'
     channel_1_th = 'yen'
     channel_2_th = 'yen'
-    cmd_limit = 0.5 #  if the threshld method results in a forground that covers more than 50% of the image, then use threshold values cmd_th_val as limit
-    cmd_th_val = 0.005
+    #cmd_limit = 0.5 #  if the threshld method results in a forground that covers more than 50% of the image, then use threshold values cmd_th_val as limit
+    #cmd_th_val = 0.005
 else:
     path = str(sys.argv[2])
     channel_1 = str(sys.argv[3])
@@ -228,7 +238,7 @@ else:
     format_image = str(sys.argv[6])
     channel_1_th = int(sys.argv[7])
     channel_2_th = int(sys.argv[8])
-    cmd_limit = int(sys.argv[8])
+    
 if not os.path.exists(path_results):
         os.makedirs(path_results)    
 
@@ -241,14 +251,22 @@ for img in os.listdir(path):
         image = confocal_coloc(image_file,channel_1,channel_2, ch1_th=channel_1_th, ch2_th=channel_2_th)
         #Saving values
         img_vals = {}
+        
+        #channel 1
         img_vals[channel_1+'_Sum'] = image.ch1_sum # eliminate
         img_vals[channel_1+'_Th_Mth'] = image.ch1_mth
         img_vals[channel_1+'_Threshold'] = image.ch1_th
         img_vals[channel_1+'_Sum_above_th']= image.ch1_above_th
         img_vals[channel_1+'_Area_above_th']= image.ch1_above_th_count
-        img_vals[channel_1+'_Mean_above_Th']= image.ch1_above_th/image.ch1_above_th_count
+        img_vals[channel_1+'_Mean_above_th']= image.ch1_above_th/image.ch1_above_th_count
+        
+        #channel 2
         img_vals[channel_2+'_Th_Mth'] = image.ch2_mth
         img_vals[channel_2+'_Threshold'] = image.ch2_th
+        img_vals[channel_2+'_Sum_above_th']= image.ch2_above_th
+        img_vals[channel_2+'_Area_above_th']= image.ch2_above_th_count
+        img_vals[channel_2+'_Mean_above_th']= image.ch2_above_th/image.ch2_above_th_count
+        
         img_vals[channel_2+'_Overlap_Sum'] = image.ch2_overlap_sum
         img_vals[channel_2+'_Overlap_Mean'] = image.ch2_overlap_mean 
         img_vals[channel_1+'_M1'] = image.M1
