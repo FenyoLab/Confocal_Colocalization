@@ -5,7 +5,7 @@ Created on Wed Mar  2 10:26:58 2016
 @author: keriabermudez
 """
 """
-Version January 6 2017
+Version January 12 2017
 
 The script will read images or zstacks and will calculated several things.
 
@@ -31,7 +31,7 @@ For each image it will:
 All the channel 1 masks are saved in path_results
 
 """
-from skimage.filters import threshold_otsu, threshold_yen
+from skimage.filters import threshold_otsu, threshold_yen, threshold_isodata
 import skimage.external.tifffile as tf
 import numpy as np
 import os
@@ -149,6 +149,8 @@ class confocal_coloc:
           self.ch1_th = cmd_th(ch1,cmd_th_val)
       elif ch1_th == 'yen':
           self.ch1_th = threshold_yen(ch1)
+      elif ch1_th == 'isodata':
+          self.ch1_th = threshold_isodata(ch1)
       else:
           self.ch1_th = ch1_th
       ch1_cmd = get_cmd(self.ch1, self.ch1_th)
@@ -162,6 +164,8 @@ class confocal_coloc:
           self.ch2_th = cmd_th(ch2,cmd_th_val)
       elif ch2_th == 'yen':
           self.ch2_th = threshold_yen(ch2)
+      elif ch2_th == 'isodata':
+          self.ch2_th = threshold_isodata(ch2)
       else:
           self.ch2_th = ch2_th
       
@@ -226,8 +230,8 @@ if local:
     channel_2 = 'green'
     name = 'Results_5416'
     format_image = 'lsm'
-    channel_1_th = 'yen'
-    channel_2_th = 'yen'
+    channel_1_th = 'isodata'
+    channel_2_th = 'isodata'
     #cmd_limit = 0.5 #  if the threshld method results in a forground that covers more than 50% of the image, then use threshold values cmd_th_val as limit
     #cmd_th_val = 0.005
 else:
