@@ -236,6 +236,7 @@ if local:
     #cmd_th_val = 0.005
 else:
     path = str(sys.argv[2])
+    path_results = path+'Results/'
     channel_1 = str(sys.argv[3])
     channel_2 = str(sys.argv[4])
     name = str(sys.argv[5])
