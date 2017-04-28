@@ -219,7 +219,7 @@ for marker in  markers:
 
 #%% Plotting
 
-fig, ax = plt.subplots(nrows = 1 ,ncols= len(markers),sharey = True,figsize = (11,4))
+fig, ax = plt.subplots(nrows = 2 ,ncols= 4,sharey = True,figsize = (6,4))
 
 sns.stripplot(x='method', y='true_negative', data=green_table,ax = ax[0,0],size = 4 )
 ax[0,0].set_title('DIAPH1')
